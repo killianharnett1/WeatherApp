@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Environments
+.env
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/
+
+# macOS / Windows
+.DS_Store
+Thumbs.db
+
+# Python packaging
+build/
+dist/
+*.egg-info/
+
+# Testing / cache
+.pytest_cache/
+.mypy_cache/
+
+# Shiny / logs
+*.log
+
+# Large local data if needed
+# Uncomment if you do NOT want to upload your csv
+# irish_climate_data.csv

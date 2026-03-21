@@ -1,0 +1,196 @@
+Station,Year,Month,Rainfall,Temperature
+Athenry,2026,January,114.9,4.6
+Athenry,2026,February,125.5,6.7
+Athenry,2026,Mar,81.6,7.2
+Athenry,2025,January,57.5,4.5
+Athenry,2025,February,93.0,6.8
+Athenry,2025,Mar,33.2,8.0
+Athenry,2025,Apr,75.6,10.7
+Athenry,2025,May,61.6,12.7
+Athenry,2025,June,165.0,14.3
+Athenry,2025,July,148.3,16.1
+Athenry,2025,August,147.0,16.2
+Athenry,2025,September,143.7,12.7
+Athenry,2025,October,145.8,11.3
+Athenry,2025,November,194.3,7.8
+Athenry,2025,December,141.9,6.5
+Athenry,2024,January,92.4,4.7
+Athenry,2024,February,159.1,7.6
+Athenry,2024,Mar,130.5,7.5
+Athenry,2024,Apr,100.7,9.3
+Athenry,2024,May,59.0,12.7
+Athenry,2024,June,58.9,12.9
+Athenry,2024,July,71.5,14.6
+Athenry,2024,August,159.0,14.7
+Athenry,2024,September,46.6,12.9
+Athenry,2024,October,112.7,11.0
+Athenry,2024,November,88.0,8.2
+Athenry,2024,December,82.2,7.0
+Athenry,2023,January,113.9,6.0
+Athenry,2023,February,42.0,7.3
+Athenry,2023,Mar,185.9,7.3
+Athenry,2023,Apr,93.4,9.2
+Athenry,2023,May,63.5,12.6
+Athenry,2023,June,93.8,16.7
+Athenry,2023,July,224.1,14.8
+Athenry,2023,August,129.1,15.4
+Athenry,2023,September,148.2,14.6
+Athenry,2023,October,179.9,11.0
+Athenry,2023,November,113.5,7.6
+Athenry,2023,December,202.9,7.1
+Belmullet,2026,January,118.8,5.9
+Belmullet,2026,February,76.0,7.2
+Belmullet,2026,Mar,81.8,8.0
+Belmullet,2025,January,131.8,6.4
+Belmullet,2025,February,115.4,7.3
+Belmullet,2025,Mar,41.5,8.8
+Belmullet,2025,Apr,77.9,11.3
+Belmullet,2025,May,50.5,13.0
+Belmullet,2025,June,100.3,14.2
+Belmullet,2025,July,96.2,15.7
+Belmullet,2025,August,89.6,16.5
+Belmullet,2025,September,117.0,13.4
+Belmullet,2025,October,132.4,11.6
+Belmullet,2025,November,135.2,9.0
+Belmullet,2025,December,143.2,7.6
+Belmullet,2024,January,117.1,6.4
+Belmullet,2024,February,115.4,8.0
+Belmullet,2024,Mar,91.8,8.0
+Belmullet,2024,Apr,95.2,9.6
+Belmullet,2024,May,46.5,12.6
+Belmullet,2024,June,55.6,12.4
+Belmullet,2024,July,80.6,14.2
+Belmullet,2024,August,208.1,14.7
+Belmullet,2024,September,45.5,13.3
+Belmullet,2024,October,132.1,11.7
+Belmullet,2024,November,75.6,9.3
+Belmullet,2024,December,133.5,8.3
+Belmullet,2023,January,135.3,7.0
+Belmullet,2023,February,66.1,8.3
+Belmullet,2023,Mar,129.4,7.6
+Belmullet,2023,Apr,60.5,9.8
+Belmullet,2023,May,41.2,12.5
+Belmullet,2023,June,56.6,16.7
+Belmullet,2023,July,148.5,14.9
+Belmullet,2023,August,117.2,15.7
+Belmullet,2023,September,77.2,14.8
+Belmullet,2023,October,100.0,11.7
+Belmullet,2023,November,139.7,9.1
+Belmullet,2023,December,186.0,7.9
+cork airport,2026,January,200.5,4.9
+cork airport,2026,February,139.2,7.5
+cork airport,2026,Mar,57.7,7.4
+cork airport,2025,January,170.9,5.4
+cork airport,2025,February,213.4,6.9
+cork airport,2025,Mar,43.3,8.0
+cork airport,2025,Apr,106.6,10.3
+cork airport,2025,May,26.4,13.2
+cork airport,2025,June,47.0,14.2
+cork airport,2025,July,64.9,16.5
+cork airport,2025,August,45.1,16.4
+cork airport,2025,September,107.2,12.5
+cork airport,2025,October,176.5,11.1
+cork airport,2025,November,203.7,8.5
+cork airport,2025,December,167.4,6.6
+cork airport,2024,January,99.5,4.8
+cork airport,2024,February,157.7,8.0
+cork airport,2024,Mar,168.2,7.5
+cork airport,2024,Apr,107.1,9.3
+cork airport,2024,May,109.6,12.4
+cork airport,2024,June,35.1,13.4
+cork airport,2024,July,58.5,14.5
+cork airport,2024,August,71.6,14.7
+cork airport,2024,September,96.2,13.3
+cork airport,2024,October,144.6,11.3
+cork airport,2024,November,145.0,9.1
+cork airport,2024,December,76.9,7.5
+cork airport,2023,January,134.6,6.1
+cork airport,2023,February,15.2,7.4
+cork airport,2023,Mar,211.4,7.3
+cork airport,2023,Apr,52.0,8.9
+cork airport,2023,May,44.9,12.7
+cork airport,2023,June,50.3,15.8
+cork airport,2023,July,145.2,14.7
+cork airport,2023,August,117.8,15.4
+cork airport,2023,September,171.4,14.6
+cork airport,2023,October,307.2,11.2
+cork airport,2023,November,108.2,8.1
+cork airport,2023,December,169.1,7.6
+Dublin Airport,2026,January,137.7,4.6
+Dublin Airport,2026,February,133.7,6.5
+Dublin Airport,2026,Mar,43.3,7.3
+Dublin Airport,2025,January,73.1,4.3
+Dublin Airport,2025,February,48.3,6.3
+Dublin Airport,2025,Mar,13.5,7.6
+Dublin Airport,2025,Apr,87.1,9.6
+Dublin Airport,2025,May,41.9,11.2
+Dublin Airport,2025,June,79.4,15.0
+Dublin Airport,2025,July,80.2,16.6
+Dublin Airport,2025,August,31.8,16.3
+Dublin Airport,2025,September,91.4,12.7
+Dublin Airport,2025,October,90.0,11.2
+Dublin Airport,2025,November,119.1,8.2
+Dublin Airport,2025,December,48.4,7.4
+Dublin Airport,2024,January,61.3,5.0
+Dublin Airport,2024,February,74.3,7.3
+Dublin Airport,2024,Mar,115.4,7.0
+Dublin Airport,2024,Apr,70.2,8.5
+Dublin Airport,2024,May,36.8,13.0
+Dublin Airport,2024,June,30.4,13.1
+Dublin Airport,2024,July,37.7,14.9
+Dublin Airport,2024,August,36.6,15.4
+Dublin Airport,2024,September,59.6,12.2
+Dublin Airport,2024,October,47.8,11.3
+Dublin Airport,2024,November,54.2,8.1
+Dublin Airport,2024,December,45.7,7.2
+Dublin Airport,2023,January,41.2,6.0
+Dublin Airport,2023,February,16.2,7.2
+Dublin Airport,2023,Mar,119.0,7.0
+Dublin Airport,2023,Apr,77.6,8.7
+Dublin Airport,2023,May,35.9,11.7
+Dublin Airport,2023,June,49.4,15.3
+Dublin Airport,2023,July,149.2,14.9
+Dublin Airport,2023,August,119.4,15.4
+Dublin Airport,2023,September,134.0,14.5
+Dublin Airport,2023,October,125.7,11.3
+Dublin Airport,2023,November,65.1,7.3
+Dublin Airport,2023,December,68.5,7.5
+Shannon Airport,2026,January,90.5,5.3
+Shannon Airport,2026,February,92.7,7.7
+Shannon Airport,2026,Mar,61.8,8.2
+Shannon Airport,2025,January,89.2,5.6
+Shannon Airport,2025,February,76.0,7.6
+Shannon Airport,2025,Mar,29.5,9.0
+Shannon Airport,2025,Apr,80.6,11.9
+Shannon Airport,2025,May,55.8,14.2
+Shannon Airport,2025,June,70.8,15.6
+Shannon Airport,2025,July,99.3,17.0
+Shannon Airport,2025,August,63.5,17.2
+Shannon Airport,2025,September,125.4,13.6
+Shannon Airport,2025,October,109.7,12.2
+Shannon Airport,2025,November,145.0,8.8
+Shannon Airport,2025,December,83.2,7.0
+Shannon Airport,2024,January,75.9,5.1
+Shannon Airport,2024,February,156.5,8.3
+Shannon Airport,2024,Mar,131.8,8.3
+Shannon Airport,2024,Apr,64.4,10.1
+Shannon Airport,2024,May,61.3,13.2
+Shannon Airport,2024,June,42.9,13.7
+Shannon Airport,2024,July,38.6,15.3
+Shannon Airport,2024,August,67.3,15.7
+Shannon Airport,2024,September,60.1,13.5
+Shannon Airport,2024,October,86.4,11.7
+Shannon Airport,2024,November,94.5,9.0
+Shannon Airport,2024,December,94.1,7.9
+Shannon Airport,2023,January,93.4,6.6
+Shannon Airport,2023,February,21.4,8.0
+Shannon Airport,2023,Mar,114.6,8.1
+Shannon Airport,2023,Apr,52.6,10.0
+Shannon Airport,2023,May,56.7,13.5
+Shannon Airport,2023,June,89.3,17.5
+Shannon Airport,2023,July,155.0,15.7
+Shannon Airport,2023,August,70.5,16.3
+Shannon Airport,2023,September,113.8,15.6
+Shannon Airport,2023,October,137.8,11.9
+Shannon Airport,2023,November,100.9,8.6
+Shannon Airport,2023,December,140.1,8.0
