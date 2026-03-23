@@ -162,3 +162,54 @@ print(df[[
     "Station", "Year", "Month", "Rainfall", "Avg_Rainfall", "Rainfall_Anomaly",
     "Temperature", "Avg_Temperature", "Temperature_Anomaly"
 ]].head())
+
+# Annual summaries (full years only)
+
+# Count how many months exist for each station-year
+annual_counts = (
+    df.groupby(["Station", "Year"], as_index=False)
+    .agg(month_count=("Month_Num", "nunique"))
+)
+
+# Keep only years with all 12 months
+full_years = annual_counts.loc[
+    annual_counts["month_count"] == 12,
+    ["Station", "Year"]
+]
+
+# Build annual summary table
+annual_summary = (
+    df.merge(full_years, on=["Station", "Year"], how="inner")
+    .groupby(["Station", "Year"], as_index=False)
+    .agg(
+        Annual_Rainfall=("Rainfall", "sum"),
+        Annual_Temperature=("Temperature", "mean"),
+        Annual_Rainfall_Anomaly=("Rainfall_Anomaly", "sum"),
+        Annual_Temperature_Anomaly=("Temperature_Anomaly", "mean"),
+    )
+)
+
+annual_summary = annual_summary.replace([np.inf, -np.inf], np.nan)
+annual_summary = annual_summary.dropna(
+    subset=[
+        "Station",
+        "Year",
+        "Annual_Rainfall",
+        "Annual_Temperature",
+        "Annual_Rainfall_Anomaly",
+        "Annual_Temperature_Anomaly",
+    ]
+).copy()
+
+latest_full_year = int(annual_summary["Year"].max()) if not annual_summary.empty else int(df["Year"].max())
+
+print("\nAnnual counts preview:")
+print(annual_counts.head())
+
+print("\nFull years preview:")
+print(full_years.head())
+
+print("\nAnnual summary preview:")
+print(annual_summary.head())
+
+print("\nLatest full year:", latest_full_year)
