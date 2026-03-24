@@ -213,3 +213,83 @@ print("\nAnnual summary preview:")
 print(annual_summary.head())
 
 print("\nLatest full year:", latest_full_year)
+
+# UI-ready variables and map data
+
+# List of stations and years for dropdowns
+stations = sorted(df["Station"].unique().tolist())
+years = sorted(df["Year"].unique().tolist())
+
+print("\nStations:", stations)
+print("Years:", years[:5], "...", years[-5:])
+
+# Station coordinates (for map visualisation)
+station_coords = pd.DataFrame(
+    [
+        {"Station": "Dublin Airport", "lat": 53.4264, "lon": -6.2499, "Region": "East"},
+        {"Station": "Cork Airport", "lat": 51.8472, "lon": -8.4911, "Region": "South"},
+        {"Station": "Athenry", "lat": 53.2964, "lon": -8.7431, "Region": "West"},
+        {"Station": "Belmullet", "lat": 54.2253, "lon": -10.0064, "Region": "Northwest"},
+        {"Station": "Shannon Airport", "lat": 52.7020, "lon": -8.9248, "Region": "Mid-West"},
+    ]
+)
+
+print("\nStation coordinates:")
+print(station_coords)
+
+from shiny import App, reactive, render, ui
+from shinywidgets import output_widget, render_widget
+import plotly.express as px
+import plotly.graph_objects as go
+
+# Helper functions
+def fmt_num(x, decimals=1):
+    if pd.isna(x):
+        return "N/A"
+    return f"{x:.{decimals}f}"
+
+
+def metric_card(title, value, subtitle="", accent_class="accent-blue"):
+    return ui.div(
+        {"class": f"metric-card {accent_class}"},
+        ui.div(title, class_="metric-title"),
+        ui.div(value, class_="metric-value"),
+        ui.div(subtitle, class_="metric-subtitle"),
+    )
+
+
+def empty_figure(message="No data available for this selection"):
+    fig = go.Figure()
+    fig.add_annotation(
+        text=message,
+        x=0.5,
+        y=0.5,
+        xref="paper",
+        yref="paper",
+        showarrow=False,
+        font={"size": 18},
+    )
+    fig.update_xaxes(visible=False)
+    fig.update_yaxes(visible=False)
+    fig.update_layout(
+        template="plotly_white",
+        margin=dict(l=20, r=20, t=40, b=20),
+        height=420,
+    )
+    return fig
+
+from shiny import App, render, ui
+
+app_ui = ui.page_fluid(
+    ui.h2("Ireland Climate Explorer"),
+    ui.p("Shiny is working."),
+    ui.h4("Stations"),
+    ui.tags.ul(*[ui.tags.li(s) for s in stations]),
+    ui.h4("Latest full year"),
+    ui.p(str(latest_full_year)),
+)
+
+def server(input, output, session):
+    pass
+
+app = App(app_ui, server)
