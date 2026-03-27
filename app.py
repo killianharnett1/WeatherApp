@@ -292,4 +292,113 @@ app_ui = ui.page_fluid(
 def server(input, output, session):
     pass
 
+app_ui = ui.page_fluid(
+    ui.h2("Ireland Climate Explorer"),
+
+    ui.layout_columns(
+        ui.input_selectize(
+            "station",
+            "Select station",
+            choices=stations,
+            selected=stations[0],
+        ),
+        ui.input_selectize(
+            "metric",
+            "Metric",
+            choices=["Rainfall", "Temperature"],
+            selected="Rainfall",
+        ),
+    ),
+
+    output_widget("trend_plot"),
+)
+
+def server(input, output, session):
+
+    @output
+    @render_widget
+    def trend_plot():
+        station = input.station()
+        metric = input.metric()
+
+        d = df[df["Station"] == station].copy()
+
+        if d.empty:
+            return empty_figure()
+
+        fig = px.line(
+            d.sort_values("Date"),
+            x="Date",
+            y=metric,
+            title=f"{metric} over time ({station})",
+        )
+
+        fig.update_layout(template="plotly_white")
+        return fig
+
+app_ui = ui.page_fluid(
+    ui.h2("Ireland Climate Explorer"),
+
+    ui.layout_columns(
+        ui.input_checkbox_group(
+            "stations_selected",
+            "Select stations",
+            choices=stations,
+            selected=stations[:2],
+            inline=False,
+        ),
+        ui.input_selectize(
+            "metric",
+            "Metric",
+            choices=["Rainfall", "Temperature"],
+            selected="Rainfall",
+        ),
+        ui.input_slider(
+            "year_range",
+            "Year range",
+            min=min(years),
+            max=max(years),
+            value=(min(years), max(years)),
+            step=1,
+            sep="",
+        ),
+        col_widths=[4, 4, 4],
+    ),
+
+    output_widget("trend_plot"),
+)
+
+def server(input, output, session):
+
+    @output
+    @render_widget
+    def trend_plot():
+        selected_stations = input.stations_selected()
+        metric = input.metric()
+        yr_min, yr_max = input.year_range()
+
+        d = df[df["Station"].isin(selected_stations)].copy()
+        d = d[(d["Year"] >= yr_min) & (d["Year"] <= yr_max)].copy()
+
+        if d.empty:
+            return empty_figure()
+
+        fig = px.line(
+            d.sort_values("Date"),
+            x="Date",
+            y=metric,
+            color="Station",
+            markers=True,
+            title=f"{metric} over time",
+        )
+
+        fig.update_layout(
+            template="plotly_white",
+            height=500,
+            legend_title="Station",
+        )
+        fig.update_xaxes(title="")
+        fig.update_yaxes(title=metric)
+        return fig
+
 app = App(app_ui, server)
