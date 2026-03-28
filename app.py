@@ -401,4 +401,219 @@ def server(input, output, session):
         fig.update_yaxes(title=metric)
         return fig
 
+app_ui = ui.page_fluid(
+    ui.h2("Ireland Climate Explorer"),
+
+    ui.layout_columns(
+        ui.input_checkbox_group(
+            "stations_selected",
+            "Select stations",
+            choices=stations,
+            selected=stations[:2],
+            inline=False,
+        ),
+        ui.input_selectize(
+            "metric",
+            "Metric",
+            choices=["Rainfall", "Temperature"],
+            selected="Rainfall",
+        ),
+        ui.input_slider(
+            "year_range",
+            "Year range",
+            min=min(years),
+            max=max(years),
+            value=(min(years), max(years)),
+            step=1,
+            sep="",
+        ),
+        col_widths=[4, 4, 4],
+    ),
+
+    output_widget("trend_plot"),
+    ui.h4("Recent values"),
+    ui.output_table("trend_table"),
+)
+
+def server(input, output, session):
+
+    @reactive.calc
+    def filtered_data():
+        selected_stations = input.stations_selected()
+        metric = input.metric()
+        yr_min, yr_max = input.year_range()
+
+        d = df[df["Station"].isin(selected_stations)].copy()
+        d = d[(d["Year"] >= yr_min) & (d["Year"] <= yr_max)].copy()
+        d = d.sort_values("Date")
+        return d, metric
+
+    @output
+    @render_widget
+    def trend_plot():
+        d, metric = filtered_data()
+
+        if d.empty:
+            return empty_figure()
+
+        fig = px.line(
+            d,
+            x="Date",
+            y=metric,
+            color="Station",
+            markers=True,
+            title=f"{metric} over time",
+        )
+
+        fig.update_layout(
+            template="plotly_white",
+            height=500,
+            legend_title="Station",
+        )
+        fig.update_xaxes(title="")
+        fig.update_yaxes(title=metric)
+        return fig
+
+    @output
+    @render.table
+    def trend_table():
+        d, metric = filtered_data()
+
+        if d.empty:
+            return pd.DataFrame({"Message": ["No data available"]})
+
+        out = d[["Date", "Station", metric]].copy()
+        out["Date"] = out["Date"].dt.strftime("%Y-%m")
+        return out.tail(15).reset_index(drop=True)
+    
+app_ui = ui.page_fluid(
+    ui.h2("Ireland Climate Explorer"),
+
+    ui.layout_columns(
+        ui.input_checkbox_group(
+            "stations_selected",
+            "Select stations",
+            choices=stations,
+            selected=stations[:2],
+            inline=False,
+        ),
+        ui.input_selectize(
+            "metric",
+            "Metric",
+            choices=["Rainfall", "Temperature"],
+            selected="Rainfall",
+        ),
+        ui.input_slider(
+            "year_range",
+            "Year range",
+            min=min(years),
+            max=max(years),
+            value=(min(years), max(years)),
+            step=1,
+            sep="",
+        ),
+        col_widths=[4, 4, 4],
+    ),
+
+    ui.output_ui("summary_cards"),
+
+    output_widget("trend_plot"),
+
+    ui.h4("Recent values"),
+    ui.output_table("trend_table"),
+)
+
+def server(input, output, session):
+
+    @reactive.calc
+    def filtered_data():
+        selected_stations = input.stations_selected()
+        metric = input.metric()
+        yr_min, yr_max = input.year_range()
+
+        d = df[df["Station"].isin(selected_stations)].copy()
+        d = d[(d["Year"] >= yr_min) & (d["Year"] <= yr_max)].copy()
+        d = d.sort_values("Date")
+        return d, metric
+
+    @output
+    @render.ui
+    def summary_cards():
+        d, metric = filtered_data()
+
+        if d.empty:
+            return ui.div("No data available for selected filters.")
+
+        latest_rows = (
+            d.sort_values("Date")
+            .groupby("Station", as_index=False)
+            .tail(1)
+        )
+
+        avg_value = d[metric].mean()
+        min_value = d[metric].min()
+        max_value = d[metric].max()
+
+        return ui.div(
+            {"style": "display:grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 1rem 0;"},
+            metric_card(
+                "Average value",
+                fmt_num(avg_value),
+                f"Across selected stations ({metric})",
+                "accent-blue",
+            ),
+            metric_card(
+                "Minimum value",
+                fmt_num(min_value),
+                f"Lowest observed {metric.lower()}",
+                "accent-green",
+            ),
+            metric_card(
+                "Maximum value",
+                fmt_num(max_value),
+                f"Highest observed {metric.lower()}",
+                "accent-orange",
+            ),
+        )
+
+    @output
+    @render_widget
+    def trend_plot():
+        d, metric = filtered_data()
+
+        if d.empty:
+            return empty_figure()
+
+        fig = px.line(
+            d,
+            x="Date",
+            y=metric,
+            color="Station",
+            markers=True,
+            title=f"{metric} over time",
+        )
+
+        fig.update_layout(
+            template="plotly_white",
+            height=500,
+            legend_title="Station",
+        )
+        fig.update_xaxes(title="")
+        fig.update_yaxes(title=metric)
+        return fig
+
+    @output
+    @render.table
+    def trend_table():
+        d, metric = filtered_data()
+
+        if d.empty:
+            return pd.DataFrame({"Message": ["No data available"]})
+
+        out = d[["Date", "Station", metric]].copy()
+        out["Date"] = out["Date"].dt.strftime("%Y-%m")
+        return out.tail(15).reset_index(drop=True)
+    
+
+
 app = App(app_ui, server)
