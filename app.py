@@ -225,13 +225,54 @@ def empty_figure(message="No data available for this selection"):
     return fig
 
 
+# -----------------------------
 # UI
+# -----------------------------
 app_ui = ui.page_navbar(
     ui.nav_panel(
         "Overview",
         ui.div(
             ui.h3("Overview"),
-            ui.p("This section will contain high-level climate summaries, comparisons, and map insights."),
+            ui.p("Compare annual rainfall and temperature across stations and inspect a simple station map."),
+
+            ui.layout_columns(
+                ui.input_selectize(
+                    "station_overview",
+                    "Primary station",
+                    choices=stations,
+                    selected="Dublin Airport" if "Dublin Airport" in stations else stations[0],
+                ),
+                ui.input_selectize(
+                    "compare_overview",
+                    "Compare with",
+                    choices=stations,
+                    selected="Cork Airport" if "Cork Airport" in stations else stations[0],
+                ),
+                ui.input_selectize(
+                    "year_overview",
+                    "Year",
+                    choices=[str(y) for y in sorted(annual_summary["Year"].unique(), reverse=True)],
+                    selected=str(latest_full_year),
+                ),
+                col_widths=[4, 4, 4],
+            ),
+
+            ui.output_ui("overview_cards"),
+
+            ui.layout_columns(
+                ui.div(
+                    ui.h4("Annual comparison"),
+                    output_widget("annual_compare_plot"),
+                ),
+                ui.div(
+                    ui.h4("Key insight"),
+                    ui.output_ui("overview_insight"),
+                ),
+                col_widths=[8, 4],
+            ),
+
+            ui.h4("Station map"),
+            output_widget("station_map"),
         ),
     ),
 
@@ -277,7 +318,33 @@ app_ui = ui.page_navbar(
         "Seasonality",
         ui.div(
             ui.h3("Seasonality"),
-            ui.p("This section will show average monthly climate patterns by station."),
+            ui.p("Explore average monthly climate patterns by station."),
+
+            ui.layout_columns(
+                ui.input_checkbox_group(
+                    "stations_season",
+                    "Select stations",
+                    choices=stations,
+                    selected=stations,
+                    inline=False,
+                ),
+                ui.input_selectize(
+                    "metric_season",
+                    "Metric",
+                    choices=["Rainfall", "Temperature"],
+                    selected="Rainfall",
+                ),
+                ui.input_switch(
+                    "show_points",
+                    "Show markers",
+                    value=True,
+                ),
+                col_widths=[4, 4, 4],
+            ),
+
+            output_widget("season_plot"),
+            ui.h4("Monthly seasonal averages"),
+            ui.output_table("season_table"),
         ),
     ),
 
@@ -285,7 +352,36 @@ app_ui = ui.page_navbar(
         "Anomalies",
         ui.div(
             ui.h3("Anomalies"),
-            ui.p("This section will show rainfall and temperature anomalies."),
+            ui.p("Explore rainfall and temperature anomalies relative to each station's monthly average."),
+
+            ui.layout_columns(
+                ui.input_selectize(
+                    "station_anom",
+                    "Select station",
+                    choices=stations,
+                    selected=stations[0],
+                ),
+                ui.input_selectize(
+                    "year_anom",
+                    "Select year",
+                    choices=[str(y) for y in years],
+                    selected=str(latest_full_year),
+                ),
+                ui.input_selectize(
+                    "metric_anom",
+                    "Metric",
+                    choices={
+                        "Rainfall_Anomaly": "Rainfall anomaly",
+                        "Temperature_Anomaly": "Temperature anomaly",
+                    },
+                    selected="Rainfall_Anomaly",
+                ),
+                col_widths=[4, 4, 4],
+            ),
+
+            output_widget("anom_plot"),
+            ui.h4("Monthly anomalies"),
+            ui.output_table("anom_table"),
         ),
     ),
 
@@ -296,6 +392,183 @@ app_ui = ui.page_navbar(
 
 # Server
 def server(input, output, session):
+    @reactive.calc
+    def overview_year_data():
+        year = int(input.year_overview())
+        d = annual_summary[annual_summary["Year"] == year].copy()
+        return d
+
+    @output
+    @render.ui
+    def overview_cards():
+        station_a = input.station_overview()
+        station_b = input.compare_overview()
+        year = int(input.year_overview())
+
+        a = annual_summary.query("Station == @station_a and Year == @year").copy()
+        b = annual_summary.query("Station == @station_b and Year == @year").copy()
+
+        if a.empty:
+            return ui.div("No annual data available for the selected station/year.")
+
+        a_rain = float(a["Annual_Rainfall"].iloc[0])
+        a_temp = float(a["Annual_Temperature"].iloc[0])
+
+        if not b.empty:
+            b_rain = float(b["Annual_Rainfall"].iloc[0])
+            b_temp = float(b["Annual_Temperature"].iloc[0])
+
+            rain_sub = f"{a_rain - b_rain:+.1f} mm vs {station_b}"
+            temp_sub = f"{a_temp - b_temp:+.1f} °C vs {station_b}"
+        else:
+            rain_sub = "Comparison unavailable"
+            temp_sub = "Comparison unavailable"
+
+        month_rows = df.query("Station == @station_a and Year == @year").copy()
+
+        rain_anom = month_rows["Rainfall_Anomaly"].sum() if not month_rows.empty else np.nan
+        temp_anom = month_rows["Temperature_Anomaly"].mean() if not month_rows.empty else np.nan
+
+        return ui.div(
+            {
+                "style": (
+                    "display:grid; grid-template-columns: repeat(4, 1fr); "
+                    "gap: 1rem; margin: 1rem 0;"
+                )
+            },
+            metric_card(
+                "Annual rainfall",
+                f"{fmt_num(a_rain)} mm",
+                rain_sub,
+                "accent-blue",
+            ),
+            metric_card(
+                "Mean temperature",
+                f"{fmt_num(a_temp)} °C",
+                temp_sub,
+                "accent-orange",
+            ),
+            metric_card(
+                "Rainfall anomaly",
+                f"{fmt_num(rain_anom)} mm",
+                "vs monthly baseline",
+                "accent-green",
+            ),
+            metric_card(
+                "Temperature anomaly",
+                f"{fmt_num(temp_anom)} °C",
+                "vs monthly baseline",
+                "accent-blue",
+            ),
+        )
+
+    @output
+    @render_widget
+    def annual_compare_plot():
+        year = int(input.year_overview())
+        plot_df = annual_summary[annual_summary["Year"] == year].copy()
+
+        if plot_df.empty:
+            return empty_figure()
+
+        fig = px.bar(
+            plot_df,
+            x="Station",
+            y="Annual_Rainfall",
+            color="Annual_Temperature",
+            text_auto=".1f",
+            title=f"Annual rainfall by station ({year})",
+            color_continuous_scale="Blues",
+            hover_data={
+                "Annual_Rainfall": ":.1f",
+                "Annual_Temperature": ":.1f",
+                "Station": True,
+            },
+        )
+
+        fig.update_layout(
+            template="plotly_white",
+            height=450,
+            legend_title="",
+        )
+        fig.update_yaxes(title="Rainfall (mm)")
+        fig.update_xaxes(title="")
+        return fig
+
+    @output
+    @render.ui
+    def overview_insight():
+        station_a = input.station_overview()
+        station_b = input.compare_overview()
+        year = int(input.year_overview())
+
+        a = annual_summary.query("Station == @station_a and Year == @year").copy()
+        b = annual_summary.query("Station == @station_b and Year == @year").copy()
+
+        if a.empty or b.empty:
+            return ui.div("Not enough data for an insight summary.")
+
+        a_rain = float(a["Annual_Rainfall"].iloc[0])
+        b_rain = float(b["Annual_Rainfall"].iloc[0])
+        a_temp = float(a["Annual_Temperature"].iloc[0])
+        b_temp = float(b["Annual_Temperature"].iloc[0])
+
+        wetter = station_a if a_rain > b_rain else station_b
+        wetter_diff = abs(a_rain - b_rain)
+
+        warmer = station_a if a_temp > b_temp else station_b
+        warmer_diff = abs(a_temp - b_temp)
+
+        return ui.div(
+            ui.p(ui.tags.b(f"{year} comparison summary")),
+            ui.p(f"{wetter} was wetter by {wetter_diff:.1f} mm of annual rainfall."),
+            ui.p(f"{warmer} was warmer by {warmer_diff:.1f} °C on annual mean temperature."),
+            ui.p("This view gives a quick regional comparison before moving into detailed trends and anomalies."),
+        )
+
+    @output
+    @render_widget
+    def station_map():
+        year = int(input.year_overview())
+
+        map_df = annual_summary[annual_summary["Year"] == year].merge(
+            station_coords,
+            on="Station",
+            how="left",
+        )
+
+        map_df = map_df.dropna(subset=["lat", "lon", "Annual_Rainfall", "Annual_Temperature"])
+
+        if map_df.empty:
+            return empty_figure()
+
+        fig = px.scatter_mapbox(
+            map_df,
+            lat="lat",
+            lon="lon",
+            size="Annual_Rainfall",
+            color="Annual_Temperature",
+            hover_name="Station",
+            hover_data={
+                "Annual_Rainfall": ":.1f",
+                "Annual_Temperature": ":.1f",
+                "Region": True,
+                "lat": False,
+                "lon": False,
+            },
+            zoom=5.5,
+            center={"lat": 53.4, "lon": -8.1},
+            height=500,
+            size_max=30,
+            color_continuous_scale="Turbo",
+        )
+
+        fig.update_layout(
+            mapbox_style="carto-positron",
+            margin=dict(l=10, r=10, t=10, b=10),
+        )
+        return fig
+
     @reactive.calc
     def filtered_data():
         selected_stations = input.stations_selected()
@@ -383,6 +656,122 @@ def server(input, output, session):
         out = d[["Date", "Station", metric]].copy()
         out["Date"] = out["Date"].dt.strftime("%Y-%m")
         return out.tail(15).reset_index(drop=True)
+
+    @reactive.calc
+    def season_filtered():
+        selected_stations = input.stations_season()
+        metric = input.metric_season()
+
+        d = df[df["Station"].isin(selected_stations)].copy()
+
+        if d.empty:
+            return pd.DataFrame(), metric
+
+        season = (
+            d.groupby(["Station", "Month_Num", "Month"], as_index=False)
+            .agg(Value=(metric, "mean"))
+            .sort_values(["Station", "Month_Num"])
+        )
+
+        return season, metric
+
+    @output
+    @render_widget
+    def season_plot():
+        season, metric = season_filtered()
+
+        if season.empty:
+            return empty_figure()
+
+        fig = px.line(
+            season,
+            x="Month",
+            y="Value",
+            color="Station",
+            markers=bool(input.show_points()),
+            category_orders={"Month": month_order},
+            title=f"Average monthly {metric.lower()} by station",
+        )
+
+        fig.update_layout(
+            template="plotly_white",
+            height=500,
+            legend_title="Station",
+        )
+        fig.update_xaxes(title="")
+        fig.update_yaxes(
+            title="Rainfall" if metric == "Rainfall" else "Temperature"
+        )
+        return fig
+
+    @output
+    @render.table
+    def season_table():
+        season, metric = season_filtered()
+
+        if season.empty:
+            return pd.DataFrame({"Message": ["No data available"]})
+
+        out = season[["Station", "Month", "Value"]].copy()
+        out.columns = ["Station", "Month", f"Average {metric}"]
+        return out.reset_index(drop=True)
+
+    @reactive.calc
+    def anomaly_filtered():
+        station = input.station_anom()
+        year = int(input.year_anom())
+        metric = input.metric_anom()
+
+        d = df[(df["Station"] == station) & (df["Year"] == year)].copy()
+        d = d.sort_values("Month_Num")
+        return d, metric
+
+    @output
+    @render_widget
+    def anom_plot():
+        d, metric = anomaly_filtered()
+
+        if d.empty:
+            return empty_figure()
+
+        title_text = (
+            "Rainfall anomaly" if metric == "Rainfall_Anomaly"
+            else "Temperature anomaly"
+        )
+
+        fig = px.bar(
+            d,
+            x="Month",
+            y=metric,
+            color=metric,
+            category_orders={"Month": month_order},
+            title=f"{title_text} by month",
+        )
+
+        fig.update_layout(
+            template="plotly_white",
+            height=500,
+            coloraxis_showscale=False,
+        )
+        fig.update_xaxes(title="")
+        fig.update_yaxes(
+            title="Rainfall anomaly" if metric == "Rainfall_Anomaly"
+            else "Temperature anomaly"
+        )
+        fig.add_hline(y=0, line_dash="dash", line_color="black")
+        return fig
+
+    @output
+    @render.table
+    def anom_table():
+        d, metric = anomaly_filtered()
+
+        if d.empty:
+            return pd.DataFrame({"Message": ["No data available"]})
+
+        out = d[["Month", metric]].copy()
+        out.columns = ["Month", "Anomaly"]
+        return out.reset_index(drop=True)
 
 
 app = App(app_ui, server)
