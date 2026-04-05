@@ -183,6 +183,22 @@ def load_and_prepare_data() -> tuple[pd.DataFrame, pd.DataFrame, list[str], list
 
 df, annual_summary, stations, years, latest_full_year = load_and_prepare_data()
 
+DEFAULT_OVERVIEW_STATION = "Dublin Airport" if "Dublin Airport" in stations else stations[0]
+DEFAULT_COMPARE_STATION = "Cork Airport" if "Cork Airport" in stations else stations[0]
+DEFAULT_OVERVIEW_YEAR = str(latest_full_year)
+
+DEFAULT_TREND_STATIONS = stations[: min(2, len(stations))]
+DEFAULT_TREND_METRIC = "Rainfall"
+DEFAULT_YEAR_RANGE = (min(years), max(years))
+
+DEFAULT_SEASON_STATIONS = stations
+DEFAULT_SEASON_METRIC = "Rainfall"
+DEFAULT_SHOW_POINTS = True
+
+DEFAULT_ANOM_STATION = stations[0]
+DEFAULT_ANOM_YEAR = str(latest_full_year)
+DEFAULT_ANOM_METRIC = "Rainfall_Anomaly"
+
 
 # =========================================================
 # Helper functions
@@ -413,6 +429,39 @@ html, body {
   overflow: hidden;
 }
 
+.panel-card ul {
+  margin-bottom: 0;
+  padding-left: 1.25rem;
+}
+
+.panel-card li {
+  margin-bottom: 0.45rem;
+  color: var(--text);
+}
+
+.info-note {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.panel-card h4 {
+  font-weight: 800;
+  margin-bottom: 0.7rem;
+}
+
+.reset-wrap {
+  display: flex;
+  align-items: end;
+  justify-content: flex-end;
+  padding-bottom: 0.75rem;
+}
+
+.btn-reset {
+  width: 100%;
+  border-radius: 12px;
+  font-weight: 700;
+}
+
 @media (max-width: 992px) {
   .metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -442,27 +491,46 @@ app_ui = ui.page_navbar(
                 "Compare stations, inspect full-year climate summaries, and spot patterns across rainfall and temperature.",
             ),
             ui.div(
+                {"class": "panel-card"},
+                ui.h4("How to read the overview"),
+                ui.tags.ul(
+                    ui.tags.li(ui.tags.b("Annual rainfall"), " is the total rainfall across all 12 months of the selected full year."),
+                    ui.tags.li(ui.tags.b("Mean temperature"), " is the average monthly temperature across that same year."),
+                    ui.tags.li(ui.tags.b("Comparison cards"), " show how the primary station differs from the comparison station for the chosen year."),
+                    ui.tags.li(ui.tags.b("Rainfall and temperature anomalies"), " show whether the selected year was above or below that station's usual monthly baseline."),
+                    ui.tags.li(ui.tags.b("Station map"), " helps you compare where stations are located and how annual conditions vary across Ireland."),
+                ),
+            ),
+            ui.div(
                 {"class": "control-card"},
                 ui.layout_columns(
                     ui.input_selectize(
                         "station_overview",
                         "Primary station",
                         choices=stations,
-                        selected="Dublin Airport" if "Dublin Airport" in stations else stations[0],
+                        selected=DEFAULT_OVERVIEW_STATION,
                     ),
                     ui.input_selectize(
                         "compare_overview",
                         "Compare with",
                         choices=stations,
-                        selected="Cork Airport" if "Cork Airport" in stations else stations[0],
+                        selected=DEFAULT_COMPARE_STATION,
                     ),
                     ui.input_selectize(
                         "year_overview",
                         "Year",
                         choices=[str(y) for y in sorted(annual_summary["Year"].unique(), reverse=True)],
-                        selected=str(latest_full_year),
+                        selected=DEFAULT_OVERVIEW_YEAR,
                     ),
-                    col_widths=[4, 4, 4],
+                    ui.div(
+                        {"class": "reset-wrap"},
+                        ui.input_action_button(
+                            "reset_overview",
+                            "Reset overview",
+                            class_="btn btn-outline-primary btn-reset",
+                        ),
+                    ),
+                    col_widths=[3, 3, 3, 3],
                 ),
             ),
             ui.output_ui("overview_cards"),
@@ -496,31 +564,49 @@ app_ui = ui.page_navbar(
                 "Track rainfall or temperature over time across multiple stations and narrow the view to a chosen year range.",
             ),
             ui.div(
+                {"class": "panel-card"},
+                ui.h4("How to read trends"),
+                ui.tags.ul(
+                    ui.tags.li(ui.tags.b("Trend lines"), " show how rainfall or temperature changes month by month over time for each selected station."),
+                    ui.tags.li(ui.tags.b("Station summary"), " condenses the selected time window into latest value, average, minimum, maximum, and overall change."),
+                    ui.tags.li(ui.tags.b("Net change"), " compares the first visible value in the selected range with the latest visible value."),
+                    ui.tags.li(ui.tags.b("Use the year slider"), " to focus on shorter or longer periods and see whether a pattern is persistent or temporary."),
+                ),
+            ),
+            ui.div(
                 {"class": "control-card"},
                 ui.layout_columns(
                     ui.input_checkbox_group(
                         "stations_selected",
                         "Select stations",
                         choices=stations,
-                        selected=stations[: min(2, len(stations))],
+                        selected=DEFAULT_TREND_STATIONS,
                         inline=False,
                     ),
                     ui.input_selectize(
                         "metric",
                         "Metric",
                         choices={"Rainfall": "Rainfall (mm)", "Temperature": "Temperature (°C)"},
-                        selected="Rainfall",
+                        selected=DEFAULT_TREND_METRIC,
                     ),
                     ui.input_slider(
                         "year_range",
                         "Year range",
                         min=min(years),
                         max=max(years),
-                        value=(min(years), max(years)),
+                        value=DEFAULT_YEAR_RANGE,
                         step=1,
                         sep="",
                     ),
-                    col_widths=[4, 4, 4],
+                    ui.div(
+                        {"class": "reset-wrap"},
+                        ui.input_action_button(
+                            "reset_trends",
+                            "Reset trends",
+                            class_="btn btn-outline-primary btn-reset",
+                        ),
+                    ),
+                    col_widths=[3, 3, 4, 2],
                 ),
             ),
             ui.output_ui("summary_cards"),
@@ -531,7 +617,11 @@ app_ui = ui.page_navbar(
             ),
             ui.div(
                 {"class": "panel-card"},
-                ui.h4("Recent values"),
+                ui.h4("Station summary"),
+                ui.p(
+                    "A compact station-level summary showing latest level, long-run average, range, and net change across the selected time window.",
+                    class_="section-subtitle",
+                ),
                 ui.output_table("trend_table"),
             ),
         ),
@@ -546,23 +636,42 @@ app_ui = ui.page_navbar(
                 "Compare average monthly climate patterns to see when each station is typically wetter or warmer.",
             ),
             ui.div(
+                {"class": "panel-card"},
+                ui.h4("How to read seasonality"),
+                ui.tags.ul(
+                    ui.tags.li(ui.tags.b("Seasonality"), " shows the typical pattern across the calendar year by averaging each month over the full dataset."),
+                    ui.tags.li(ui.tags.b("Peak month"), " is the month with the highest average rainfall or temperature for that station."),
+                    ui.tags.li(ui.tags.b("Low month"), " is the month with the lowest average value."),
+                    ui.tags.li(ui.tags.b("Seasonal range"), " is the difference between the highest and lowest average month, showing how strong the seasonal swing is."),
+                    ui.tags.li(ui.tags.b("Use this page"), " to compare whether stations have similar timing but different magnitudes, or completely different seasonal patterns."),
+                ),
+            ),
+            ui.div(
                 {"class": "control-card"},
                 ui.layout_columns(
                     ui.input_checkbox_group(
                         "stations_season",
                         "Select stations",
                         choices=stations,
-                        selected=stations,
+                        selected=DEFAULT_SEASON_STATIONS,
                         inline=False,
                     ),
                     ui.input_selectize(
                         "metric_season",
                         "Metric",
                         choices={"Rainfall": "Rainfall (mm)", "Temperature": "Temperature (°C)"},
-                        selected="Rainfall",
+                        selected=DEFAULT_SEASON_METRIC,
                     ),
-                    ui.input_switch("show_points", "Show markers", value=True),
-                    col_widths=[4, 4, 4],
+                    ui.input_switch("show_points", "Show markers", value=DEFAULT_SHOW_POINTS),
+                    ui.div(
+                        {"class": "reset-wrap"},
+                        ui.input_action_button(
+                            "reset_seasonality",
+                            "Reset seasonality",
+                            class_="btn btn-outline-primary btn-reset",
+                        ),
+                    ),
+                    col_widths=[4, 3, 2, 3],
                 ),
             ),
             ui.div(
@@ -572,7 +681,11 @@ app_ui = ui.page_navbar(
             ),
             ui.div(
                 {"class": "panel-card"},
-                ui.h4("Monthly seasonal averages"),
+                ui.h4("Seasonality summary"),
+                ui.p(
+                    "A compact summary of peak and low months, annual average, and the size of the seasonal swing for each station.",
+                    class_="section-subtitle",
+                ),
                 ui.output_table("season_table"),
             ),
         ),
@@ -587,19 +700,32 @@ app_ui = ui.page_navbar(
                 "See how a selected year compares with each station's own long-run monthly average.",
             ),
             ui.div(
+                {"class": "panel-card"},
+                ui.h4("How to read anomalies"),
+                ui.tags.ul(
+                    ui.tags.li(ui.tags.b("Anomaly"), " means the difference between an observed value and that station's usual monthly average."),
+                    ui.tags.li(ui.tags.b("Positive rainfall anomaly"), " means that month was wetter than normal for that station."),
+                    ui.tags.li(ui.tags.b("Negative rainfall anomaly"), " means that month was drier than normal."),
+                    ui.tags.li(ui.tags.b("Positive temperature anomaly"), " means that month was warmer than normal."),
+                    ui.tags.li(ui.tags.b("Negative temperature anomaly"), " means that month was cooler than normal."),
+                    ui.tags.li(ui.tags.b("Zero line"), " marks the baseline. Bars above zero are above normal; bars below zero are below normal."),
+                    ui.tags.li(ui.tags.b("Important"), " anomalies compare each station against its own history, so they show departures from normal rather than direct station-to-station differences."),
+                ),
+            ),
+            ui.div(
                 {"class": "control-card"},
                 ui.layout_columns(
                     ui.input_selectize(
                         "station_anom",
                         "Select station",
                         choices=stations,
-                        selected=stations[0],
+                        selected=DEFAULT_ANOM_STATION,
                     ),
                     ui.input_selectize(
                         "year_anom",
                         "Select year",
                         choices=[str(y) for y in years],
-                        selected=str(latest_full_year),
+                        selected=DEFAULT_ANOM_YEAR,
                     ),
                     ui.input_selectize(
                         "metric_anom",
@@ -608,9 +734,17 @@ app_ui = ui.page_navbar(
                             "Rainfall_Anomaly": "Rainfall anomaly (mm)",
                             "Temperature_Anomaly": "Temperature anomaly (°C)",
                         },
-                        selected="Rainfall_Anomaly",
+                        selected=DEFAULT_ANOM_METRIC,
                     ),
-                    col_widths=[4, 4, 4],
+                    ui.div(
+                        {"class": "reset-wrap"},
+                        ui.input_action_button(
+                            "reset_anomalies",
+                            "Reset anomalies",
+                            class_="btn btn-outline-primary btn-reset",
+                        ),
+                    ),
+                    col_widths=[3, 3, 3, 3],
                 ),
             ),
             ui.div(
@@ -620,7 +754,11 @@ app_ui = ui.page_navbar(
             ),
             ui.div(
                 {"class": "panel-card"},
-                ui.h4("Monthly anomalies"),
+                ui.h4("Anomaly summary"),
+                ui.p(
+                    "A short insight table highlighting how many months were above or below baseline and where the strongest deviations occurred.",
+                    class_="section-subtitle",
+                ),
                 ui.output_table("anom_table"),
             ),
         ),
@@ -636,6 +774,37 @@ app_ui = ui.page_navbar(
 # Server
 # =========================================================
 def server(input, output, session):
+    @reactive.effect
+    @reactive.event(input.reset_overview)
+    def _reset_overview():
+        ui.update_selectize("station_overview", selected=DEFAULT_OVERVIEW_STATION, session=session)
+        ui.update_selectize("compare_overview", selected=DEFAULT_COMPARE_STATION, session=session)
+        ui.update_selectize("year_overview", selected=DEFAULT_OVERVIEW_YEAR, session=session)
+
+    @reactive.effect
+    @reactive.event(input.reset_trends)
+    def _reset_trends():
+        ui.update_checkbox_group("stations_selected", selected=DEFAULT_TREND_STATIONS, session=session)
+        ui.update_selectize("metric", selected=DEFAULT_TREND_METRIC, session=session)
+        ui.update_slider("year_range", value=DEFAULT_YEAR_RANGE, session=session)
+
+    @reactive.effect
+    @reactive.event(input.reset_seasonality)
+    def _reset_seasonality():
+        ui.update_checkbox_group("stations_season", selected=DEFAULT_SEASON_STATIONS, session=session)
+        ui.update_selectize("metric_season", selected=DEFAULT_SEASON_METRIC, session=session)
+        try:
+            ui.update_switch("show_points", value=DEFAULT_SHOW_POINTS, session=session)
+        except AttributeError:
+            pass
+
+    @reactive.effect
+    @reactive.event(input.reset_anomalies)
+    def _reset_anomalies():
+        ui.update_selectize("station_anom", selected=DEFAULT_ANOM_STATION, session=session)
+        ui.update_selectize("year_anom", selected=DEFAULT_ANOM_YEAR, session=session)
+        ui.update_selectize("metric_anom", selected=DEFAULT_ANOM_METRIC, session=session)
+
     @reactive.calc
     def overview_year_data() -> pd.DataFrame:
         year = int(input.year_overview())
@@ -765,7 +934,6 @@ def server(input, output, session):
     @output
     @render_widget
     def station_map():
-        year = int(input.year_overview())
         map_df = overview_year_data().merge(STATION_COORDS, on="Station", how="left")
         map_df = map_df.dropna(subset=["lat", "lon", "Annual_Rainfall", "Annual_Temperature"])
 
@@ -849,10 +1017,35 @@ def server(input, output, session):
         if d.empty:
             return pd.DataFrame({"Message": ["No data available"]})
 
-        out = d[["Date", "Station", metric]].copy()
-        out["Date"] = out["Date"].dt.strftime("%Y-%m")
-        out.columns = ["Month", "Station", metric]
-        return out.tail(15).reset_index(drop=True)
+        summary = (
+            d.sort_values("Date")
+            .groupby("Station", as_index=False)
+            .agg(
+                Latest_Value=(metric, "last"),
+                Average_Value=(metric, "mean"),
+                Minimum_Value=(metric, "min"),
+                Maximum_Value=(metric, "max"),
+                First_Value=(metric, "first"),
+                Last_Month=("Date", "last"),
+            )
+        )
+        summary["Change"] = summary["Latest_Value"] - summary["First_Value"]
+        summary = summary.drop(columns=["First_Value"])
+        summary["Last_Month"] = pd.to_datetime(summary["Last_Month"]).dt.strftime("%Y-%m")
+        for col in ["Latest_Value", "Average_Value", "Minimum_Value", "Maximum_Value", "Change"]:
+            summary[col] = summary[col].round(1)
+
+        label = "Rainfall (mm)" if metric == "Rainfall" else "Temperature (°C)"
+        return summary.rename(
+            columns={
+                "Latest_Value": f"Latest {label}",
+                "Average_Value": f"Average {label}",
+                "Minimum_Value": f"Min {label}",
+                "Maximum_Value": f"Max {label}",
+                "Change": f"Change in {label}",
+                "Last_Month": "Latest month",
+            }
+        ).sort_values(f"Latest {label}", ascending=False).reset_index(drop=True)
 
     @output
     @render_widget
@@ -883,9 +1076,33 @@ def server(input, output, session):
         if season.empty:
             return pd.DataFrame({"Message": ["No data available"]})
 
-        out = season[["Station", "Month", "Value"]].copy()
-        out.columns = ["Station", "Month", f"Average {metric}"]
-        return out.reset_index(drop=True)
+        rows = []
+        for station, grp in season.groupby("Station"):
+            grp = grp.sort_values("Month_Num").reset_index(drop=True)
+            peak = grp.loc[grp["Value"].idxmax()]
+            trough = grp.loc[grp["Value"].idxmin()]
+            rows.append(
+                {
+                    "Station": station,
+                    "Peak month": peak["Month"],
+                    "Peak value": round(float(peak["Value"]), 1),
+                    "Low month": trough["Month"],
+                    "Low value": round(float(trough["Value"]), 1),
+                    "Annual average": round(float(grp["Value"].mean()), 1),
+                    "Seasonal range": round(float(grp["Value"].max() - grp["Value"].min()), 1),
+                }
+            )
+
+        out = pd.DataFrame(rows)
+        unit = "mm" if metric == "Rainfall" else "°C"
+        return out.rename(
+            columns={
+                "Peak value": f"Peak value ({unit})",
+                "Low value": f"Low value ({unit})",
+                "Annual average": f"Annual average ({unit})",
+                "Seasonal range": f"Seasonal range ({unit})",
+            }
+        ).sort_values(f"Seasonal range ({unit})", ascending=False).reset_index(drop=True)
 
     @output
     @render_widget
@@ -918,9 +1135,40 @@ def server(input, output, session):
         if d.empty:
             return pd.DataFrame({"Message": ["No data available"]})
 
-        out = d[["Month", metric]].copy()
-        out.columns = ["Month", "Anomaly"]
-        return out.reset_index(drop=True)
+        pos = d[d[metric] > 0]
+        neg = d[d[metric] < 0]
+        peak_pos = pos.loc[pos[metric].idxmax()] if not pos.empty else None
+        peak_neg = neg.loc[neg[metric].idxmin()] if not neg.empty else None
+
+        summary_rows = [
+            {
+                "Insight": "Positive anomaly months",
+                "Value": int((d[metric] > 0).sum()),
+            },
+            {
+                "Insight": "Negative anomaly months",
+                "Value": int((d[metric] < 0).sum()),
+            },
+            {
+                "Insight": "Strongest positive month",
+                "Value": f"{peak_pos['Month']} ({peak_pos[metric]:+.1f})" if peak_pos is not None else "None",
+            },
+            {
+                "Insight": "Strongest negative month",
+                "Value": f"{peak_neg['Month']} ({peak_neg[metric]:+.1f})" if peak_neg is not None else "None",
+            },
+            {
+                "Insight": "Annual anomaly summary",
+                "Value": round(float(d[metric].sum()), 1) if metric == "Rainfall_Anomaly" else round(float(d[metric].mean()), 1),
+            },
+        ]
+
+        unit = "mm" if metric == "Rainfall_Anomaly" else "°C"
+        out = pd.DataFrame(summary_rows)
+        out.loc[out["Insight"] == "Annual anomaly summary", "Value"] = out.loc[
+            out["Insight"] == "Annual anomaly summary", "Value"
+        ].astype(str) + f" {unit}"
+        return out
 
 
 app = App(app_ui, server)
