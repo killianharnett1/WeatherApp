@@ -1,23 +1,41 @@
 from __future__ import annotations
 
-import json
+# Path is used to work safely with file locations.
 from pathlib import Path
 
+# numpy and pandas handle data cleaning and analysis.
 import numpy as np
 import pandas as pd
+
+# plotly is used for interactive charts and maps.
 import plotly.express as px
 import plotly.graph_objects as go
+
+# shiny provides the app framework, reactivity, rendering, and UI.
 from shiny import App, reactive, render, ui
+
+# shinywidgets is used to render Plotly charts inside the Shiny app.
 from shinywidgets import output_widget, render_widget
 
 
-# =========================================================
 # Configuration
-# =========================================================
+# APP_DIR points to the folder containing this app.py file.
+# This is useful if the app needs to read or save local files.
 APP_DIR = Path(__file__).parent
-DATA_FILE = APP_DIR / "irish_climate_data.csv"
-JSON_FILES = sorted(APP_DIR.glob("*.json"))
 
+# DATA_FILE is a local fallback CSV path.
+# If the remote GitHub CSV cannot be loaded, the app will try this file.
+DATA_FILE = APP_DIR / "irish_climate_data.csv"
+
+# This is the main remote dataset source.
+# The app tries to read this CSV directly from GitHub first.
+REMOTE_CSV_URL = (
+    "https://raw.githubusercontent.com/"
+    "killianharnett1/WeatherApp/main/irish_climate_data.csv"
+)
+
+# MONTH_MAP standardises shortened month names into full month names.
+# This matters because later charts and ordering depend on consistent labels.
 MONTH_MAP = {
     "Jan": "January",
     "Feb": "February",
@@ -34,12 +52,19 @@ MONTH_MAP = {
     "Dec": "December",
 }
 
+# MONTH_ORDER defines the correct calendar order for plots and tables.
+# Without this, months might appear alphabetically instead of chronologically.
 MONTH_ORDER = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December",
 ]
+
+# MONTH_NUM_MAP converts full month names into numeric month values.
+# This is used for sorting and for building proper dates.
 MONTH_NUM_MAP = {m: i + 1 for i, m in enumerate(MONTH_ORDER)}
 
+# STATION_NAME_MAP standardises inconsistent station naming.
+# This prevents duplicate-looking stations caused by case or spacing differences.
 STATION_NAME_MAP = {
     "athenry": "Athenry",
     "belmullet": "Belmullet",
@@ -48,6 +73,8 @@ STATION_NAME_MAP = {
     "shannon airport": "Shannon Airport",
 }
 
+# STATION_COORDS provides geographic coordinates for the station map.
+# These are manually defined because the climate dataset itself does not contain lat/lon.
 STATION_COORDS = pd.DataFrame(
     [
         {"Station": "Dublin Airport", "lat": 53.4264, "lon": -6.2499, "Region": "East"},
@@ -58,65 +85,55 @@ STATION_COORDS = pd.DataFrame(
     ]
 )
 
+# Shared chart settings used across multiple figures.
 PLOT_TEMPLATE = "plotly_white"
 PLOT_HEIGHT = 500
 
 
-# =========================================================
 # Data preparation
-# =========================================================
-def build_dataset_from_json(folder: Path) -> pd.DataFrame:
-    rows: list[dict] = []
-
-    for path in sorted(folder.glob("*.json")):
-        station_name = path.stem
-
-        with path.open(encoding="utf-8") as f:
-            data = json.load(f)
-
-        rainfall = data.get("total_rainfall", {}).get("report", {})
-        temp = data.get("mean_temperature", {}).get("report", {})
-
-        for year, months in rainfall.items():
-            if year == "LTA":
-                continue
-
-            for month, rain_val in months.items():
-                if month == "annual":
-                    continue
-
-                temp_val = temp.get(year, {}).get(month)
-                if rain_val in ("", None) or temp_val in ("", None):
-                    continue
-
-                rows.append(
-                    {
-                        "Station": station_name,
-                        "Year": year,
-                        "Month": str(month).capitalize(),
-                        "Rainfall": rain_val,
-                        "Temperature": temp_val,
-                    }
-                )
-
-    df = pd.DataFrame(rows)
-    if df.empty:
-        raise ValueError("No valid climate records were found in the JSON files.")
-
-    return df
-
-
 def load_and_prepare_data() -> tuple[pd.DataFrame, pd.DataFrame, list[str], list[int], int]:
-    if JSON_FILES:
-        raw = build_dataset_from_json(APP_DIR)
-        raw.to_csv(DATA_FILE, index=False)
-    elif DATA_FILE.exists():
-        raw = pd.read_csv(DATA_FILE)
-    else:
-        raise FileNotFoundError("No JSON files or CSV dataset found in the app directory.")
+    """
+    Load the climate dataset and prepare all derived fields used by the app.
 
+    What this function does:
+    1. Attempts to load the CSV from GitHub.
+    2. Falls back to a local CSV if GitHub is unavailable.
+    3. Cleans station names, month names, and numeric fields.
+    4. Builds dates and month numbers for proper sorting.
+    5. Computes monthly baselines for each station.
+    6. Computes rainfall and temperature anomalies.
+    7. Builds annual summaries using complete years only.
+    8. Returns everything the app needs:
+       - cleaned monthly data
+       - annual summary data
+       - station list
+       - year list
+       - latest complete year
+    """
+
+    # First try the remote GitHub CSV so the app can use the latest hosted dataset.
+    try:
+        raw = pd.read_csv(REMOTE_CSV_URL)
+        print("Dataset loaded successfully from GitHub.")
+    except Exception as e:
+        # If the remote file fails, use a local fallback if available.
+        print(f"Remote dataset load failed: {e}")
+        if DATA_FILE.exists():
+            raw = pd.read_csv(DATA_FILE)
+            print("Loaded dataset from local CSV fallback.")
+        else:
+            raise FileNotFoundError(
+                "Unable to load dataset from GitHub and no local CSV fallback was found."
+            )
+
+    # Work on a copy so the original raw data stays untouched.
     df = raw.copy()
 
+    # Standardise station names:
+    # - convert to string
+    # - strip extra spaces
+    # - lower-case to normalise before replacement
+    # - replace with clean display names
     df["Station"] = (
         df["Station"]
         .astype(str)
@@ -125,24 +142,39 @@ def load_and_prepare_data() -> tuple[pd.DataFrame, pd.DataFrame, list[str], list
         .replace(STATION_NAME_MAP)
     )
 
+    # Standardise month labels so all months use the same naming convention.
     df["Month"] = df["Month"].astype(str).str.strip().replace(MONTH_MAP)
 
+    # Convert important columns to numeric values.
+    # errors="coerce" turns invalid values into NaN instead of crashing.
     for col in ["Year", "Rainfall", "Temperature"]:
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
+    # Create a numeric month column for sorting and date construction.
     df["Month_Num"] = df["Month"].map(MONTH_NUM_MAP)
+
+    # Build a real date column using year + month + day=1.
+    # This is essential for time-series plots.
     df["Date"] = pd.to_datetime(
         dict(year=df["Year"], month=df["Month_Num"], day=1),
         errors="coerce",
     )
 
+    # Replace infinite values with NaN, then drop incomplete rows.
+    # This ensures downstream calculations and charts are reliable.
     df = df.replace([np.inf, -np.inf], np.nan).dropna(
         subset=["Station", "Year", "Month", "Month_Num", "Date", "Rainfall", "Temperature"]
     )
 
+    # Recast key columns after cleaning so they are stored as integers.
     df["Year"] = df["Year"].astype(int)
     df["Month_Num"] = df["Month_Num"].astype(int)
 
+    # Compute the long-run monthly average for each station.
+    # Example:
+    # - all Januaries for Dublin Airport are averaged together
+    # - all Februaries for Cork Airport are averaged together
+    # These monthly baselines are later used to calculate anomalies.
     monthly_baseline = (
         df.groupby(["Station", "Month_Num", "Month"], as_index=False)
         .agg(
@@ -151,16 +183,34 @@ def load_and_prepare_data() -> tuple[pd.DataFrame, pd.DataFrame, list[str], list
         )
     )
 
+    # Merge monthly baseline values back into the original monthly data.
+    # This lets each row know what the "normal" rainfall/temperature is
+    # for that station and month.
     df = df.merge(monthly_baseline, on=["Station", "Month_Num", "Month"], how="left")
+
+    # Calculate anomalies:
+    # anomaly = observed value - long-run monthly average
+    # Positive anomaly = above normal
+    # Negative anomaly = below normal
     df["Rainfall_Anomaly"] = df["Rainfall"] - df["Avg_Rainfall"]
     df["Temperature_Anomaly"] = df["Temperature"] - df["Avg_Temperature"]
 
+    # Count how many distinct months are present for each station-year pair.
+    # This is used to keep only full years in annual comparisons.
     annual_counts = (
         df.groupby(["Station", "Year"], as_index=False)
         .agg(month_count=("Month_Num", "nunique"))
     )
+
+    # Keep only years with all 12 months.
+    # This prevents misleading annual totals/averages based on incomplete data.
     full_years = annual_counts.loc[annual_counts["month_count"] == 12, ["Station", "Year"]]
 
+    # Build annual summaries using only full years.
+    # Rainfall is summed across the year.
+    # Temperature is averaged across the year.
+    # Rainfall anomaly is summed.
+    # Temperature anomaly is averaged.
     annual_summary = (
         df.merge(full_years, on=["Station", "Year"], how="inner")
         .groupby(["Station", "Year"], as_index=False)
@@ -174,15 +224,26 @@ def load_and_prepare_data() -> tuple[pd.DataFrame, pd.DataFrame, list[str], list
         .dropna()
     )
 
+    # Build helper lists used to populate UI controls.
     stations = sorted(df["Station"].unique().tolist())
     years = sorted(df["Year"].unique().tolist())
-    latest_full_year = int(annual_summary["Year"].max()) if not annual_summary.empty else int(df["Year"].max())
+
+    # Identify the latest full year for default selections.
+    latest_full_year = (
+        int(annual_summary["Year"].max())
+        if not annual_summary.empty
+        else int(df["Year"].max())
+    )
 
     return df, annual_summary, stations, years, latest_full_year
 
 
+# Load all cleaned and prepared data when the app starts.
 df, annual_summary, stations, years, latest_full_year = load_and_prepare_data()
 
+
+# Default UI selections.
+# These are also used by the reset buttons, so the app returns to a known state.
 DEFAULT_OVERVIEW_STATION = "Dublin Airport" if "Dublin Airport" in stations else stations[0]
 DEFAULT_COMPARE_STATION = "Cork Airport" if "Cork Airport" in stations else stations[0]
 DEFAULT_OVERVIEW_YEAR = str(latest_full_year)
@@ -200,16 +261,33 @@ DEFAULT_ANOM_YEAR = str(latest_full_year)
 DEFAULT_ANOM_METRIC = "Rainfall_Anomaly"
 
 
-# =========================================================
 # Helper functions
-# =========================================================
 def fmt_num(x: float | int | None, decimals: int = 1, suffix: str = "") -> str:
+    """
+    Format numeric values consistently for display.
+
+    Why this exists:
+    - keeps formatting logic in one place
+    - avoids repeated f-strings across the app
+    - handles missing values safely
+
+    Example:
+    fmt_num(12.345, suffix=" mm") -> '12.3 mm'
+    """
     if pd.isna(x):
         return "N/A"
     return f"{x:.{decimals}f}{suffix}"
 
 
 def metric_card(title: str, value: str, subtitle: str = "", accent_class: str = "accent-blue"):
+    """
+    Build a reusable UI card for displaying headline metrics.
+
+    Why this exists:
+    - avoids repeating HTML structure for every card
+    - makes styling consistent
+    - keeps the UI code shorter and cleaner
+    """
     return ui.div(
         {"class": f"metric-card {accent_class}"},
         ui.div(title, class_="metric-title"),
@@ -219,6 +297,13 @@ def metric_card(title: str, value: str, subtitle: str = "", accent_class: str = 
 
 
 def section_title(title: str, subtitle: str):
+    """
+    Build a standard page section header.
+
+    Why this exists:
+    - ensures a consistent page structure across tabs
+    - makes the UI easier to read
+    """
     return ui.div(
         {"class": "section-header"},
         ui.h2(title, class_="section-title"),
@@ -227,6 +312,13 @@ def section_title(title: str, subtitle: str):
 
 
 def empty_figure(message: str = "No data available for this selection") -> go.Figure:
+    """
+    Return a blank Plotly figure with a centered message.
+
+    Why this exists:
+    - prevents charts from breaking when data is missing
+    - provides a clear, user-friendly empty state
+    """
     fig = go.Figure()
     fig.add_annotation(
         text=message,
@@ -250,6 +342,13 @@ def empty_figure(message: str = "No data available for this selection") -> go.Fi
 
 
 def apply_common_layout(fig: go.Figure, title: str | None = None, height: int = PLOT_HEIGHT) -> go.Figure:
+    """
+    Apply a consistent style to all Plotly figures.
+
+    Why this exists:
+    - keeps chart styling consistent across the whole app
+    - avoids repeating layout code in every chart
+    """
     fig.update_layout(
         template=PLOT_TEMPLATE,
         height=height,
@@ -272,12 +371,22 @@ def apply_common_layout(fig: go.Figure, title: str | None = None, height: int = 
 
 
 def get_annual_row(station: str, year: int) -> pd.Series | None:
+    """
+    Return the annual summary row for one station and one year.
+
+    Why this exists:
+    - makes repeated annual lookup code shorter
+    - centralises the empty-check logic
+    """
     row = annual_summary[(annual_summary["Station"] == station) & (annual_summary["Year"] == year)]
     if row.empty:
         return None
     return row.iloc[0]
 
 
+# Styling
+# APP_CSS contains all custom styling for the dashboard.
+# It controls layout, spacing, cards, colours, typography, and responsiveness.
 APP_CSS = """
 :root {
   --bg: #f4f7fb;
@@ -462,6 +571,10 @@ html, body {
   font-weight: 700;
 }
 
+.download-wrap {
+  margin-top: 0.75rem;
+}
+
 @media (max-width: 992px) {
   .metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -476,20 +589,26 @@ html, body {
 """
 
 
-# =========================================================
 # UI
-# =========================================================
+# app_ui defines the full interface the user sees.
+# It is organised into tabs using page_navbar.
 app_ui = ui.page_navbar(
+    # Inject the custom CSS into the document head.
     ui.head_content(ui.tags.style(APP_CSS)),
 
+    # Overview tab
     ui.nav_panel(
         "Overview",
         ui.div(
             {"class": "dashboard-shell"},
+
+            # Title and summary text for this page.
             section_title(
                 "Ireland Climate Explorer",
                 "Compare stations, inspect full-year climate summaries, and spot patterns across rainfall and temperature.",
             ),
+
+            # Explanatory panel to help users understand the metrics.
             ui.div(
                 {"class": "panel-card"},
                 ui.h4("How to read the overview"),
@@ -501,6 +620,8 @@ app_ui = ui.page_navbar(
                     ui.tags.li(ui.tags.b("Station map"), " helps you compare where stations are located and how annual conditions vary across Ireland."),
                 ),
             ),
+
+            # Main filter controls for the Overview page.
             ui.div(
                 {"class": "control-card"},
                 ui.layout_columns(
@@ -533,7 +654,13 @@ app_ui = ui.page_navbar(
                     col_widths=[3, 3, 3, 3],
                 ),
             ),
+
+            # Metric cards shown underneath the controls.
             ui.output_ui("overview_cards"),
+
+            # Two-column layout:
+            # left = chart
+            # right = text insight
             ui.layout_columns(
                 ui.div(
                     {"class": "chart-card"},
@@ -547,6 +674,8 @@ app_ui = ui.page_navbar(
                 ),
                 col_widths=[8, 4],
             ),
+
+            # Station map shown at the bottom of the Overview page.
             ui.div(
                 {"class": "chart-card"},
                 ui.div("Station map", class_="chart-title"),
@@ -555,6 +684,7 @@ app_ui = ui.page_navbar(
         ),
     ),
 
+    # Trends tab
     ui.nav_panel(
         "Trends",
         ui.div(
@@ -623,10 +753,15 @@ app_ui = ui.page_navbar(
                     class_="section-subtitle",
                 ),
                 ui.output_table("trend_table"),
+                ui.div(
+                    {"class": "download-wrap"},
+                    ui.download_button("download_trend_table", "Download trend summary CSV"),
+                ),
             ),
         ),
     ),
 
+    # Seasonality tab
     ui.nav_panel(
         "Seasonality",
         ui.div(
@@ -691,6 +826,7 @@ app_ui = ui.page_navbar(
         ),
     ),
 
+    # Anomalies tab
     ui.nav_panel(
         "Anomalies",
         ui.div(
@@ -764,16 +900,64 @@ app_ui = ui.page_navbar(
         ),
     ),
 
+    # About tab
+    ui.nav_panel(
+        "About",
+        ui.div(
+            {"class": "dashboard-shell"},
+            section_title(
+                "About this dashboard",
+                "Methodology, definitions, and important context for interpreting the data.",
+            ),
+            ui.div(
+                {"class": "panel-card"},
+                ui.h4("Methodology"),
+                ui.tags.ul(
+                    ui.tags.li("Annual rainfall is calculated as the sum of monthly rainfall values for complete years only."),
+                    ui.tags.li("Annual mean temperature is calculated as the average of monthly temperature values for complete years only."),
+                    ui.tags.li("Only years with all 12 months are included in annual summaries."),
+                    ui.tags.li("Monthly anomalies are calculated relative to each station's historical monthly average."),
+                ),
+            ),
+            ui.div(
+                {"class": "panel-card"},
+                ui.h4("Understanding anomalies"),
+                ui.tags.ul(
+                    ui.tags.li("Positive anomaly means above normal for that station."),
+                    ui.tags.li("Negative anomaly means below normal for that station."),
+                    ui.tags.li("Each station is compared against its own historical pattern."),
+                    ui.tags.li("Anomalies are not direct station-to-station comparisons."),
+                ),
+            ),
+            ui.div(
+                {"class": "panel-card"},
+                ui.h4("Limitations"),
+                ui.tags.ul(
+                    ui.tags.li("Station coordinates are predefined in the app."),
+                    ui.tags.li("Data completeness depends on the source JSON files."),
+                    ui.tags.li("No external validation is applied beyond internal cleaning rules."),
+                ),
+            ),
+        ),
+    ),
+
     title="Ireland Climate Explorer",
     id="page",
     fillable=True,
 )
 
 
-# =========================================================
 # Server
-# =========================================================
+# The server defines how the app reacts to user input.
+# It contains:
+# - reset button behaviour
+# - reactive data filters
+# - chart outputs
+# - table outputs
 def server(input, output, session):
+    # Reset button behaviour
+    # These effects listen for reset button clicks and restore defaults.
+
     @reactive.effect
     @reactive.event(input.reset_overview)
     def _reset_overview():
@@ -793,6 +977,9 @@ def server(input, output, session):
     def _reset_seasonality():
         ui.update_checkbox_group("stations_season", selected=DEFAULT_SEASON_STATIONS, session=session)
         ui.update_selectize("metric_season", selected=DEFAULT_SEASON_METRIC, session=session)
+
+        # update_switch may not exist in every Shiny version,
+        # so this is wrapped in a try block for compatibility.
         try:
             ui.update_switch("show_points", value=DEFAULT_SHOW_POINTS, session=session)
         except AttributeError:
@@ -805,16 +992,35 @@ def server(input, output, session):
         ui.update_selectize("year_anom", selected=DEFAULT_ANOM_YEAR, session=session)
         ui.update_selectize("metric_anom", selected=DEFAULT_ANOM_METRIC, session=session)
 
+    # Reactive calculations
+    # reactive.calc functions automatically recompute when the
+    # inputs they depend on change.
+
     @reactive.calc
     def overview_year_data() -> pd.DataFrame:
+        """
+        Return annual summary data for the selected overview year only.
+        This is reused by multiple Overview outputs.
+        """
         year = int(input.year_overview())
         return annual_summary[annual_summary["Year"] == year].copy()
 
     @reactive.calc
     def filtered_data() -> tuple[pd.DataFrame, str]:
-        selected_stations = input.stations_selected()
+        """
+        Filter monthly data for the Trends tab based on:
+        - selected stations
+        - selected metric
+        - selected year range
+        """
+        selected_stations = input.stations_selected() or []
         metric = input.metric()
         yr_min, yr_max = input.year_range()
+
+        # If no stations are selected, return an empty frame
+        # so the outputs can show a clean empty state.
+        if not selected_stations:
+            return pd.DataFrame(), metric
 
         d = df[
             df["Station"].isin(selected_stations)
@@ -824,8 +1030,15 @@ def server(input, output, session):
 
     @reactive.calc
     def season_filtered() -> tuple[pd.DataFrame, str]:
-        selected_stations = input.stations_season()
+        """
+        Build the monthly average dataset used on the Seasonality tab.
+        Each row represents the average value for one station and month.
+        """
+        selected_stations = input.stations_season() or []
         metric = input.metric_season()
+
+        if not selected_stations:
+            return pd.DataFrame(), metric
 
         d = df[df["Station"].isin(selected_stations)].copy()
         if d.empty:
@@ -840,6 +1053,10 @@ def server(input, output, session):
 
     @reactive.calc
     def anomaly_filtered() -> tuple[pd.DataFrame, str]:
+        """
+        Filter monthly anomaly data for one selected station and year.
+        Used on the Anomalies tab.
+        """
         station = input.station_anom()
         year = int(input.year_anom())
         metric = input.metric_anom()
@@ -847,9 +1064,14 @@ def server(input, output, session):
         d = df[(df["Station"] == station) & (df["Year"] == year)].sort_values("Month_Num").copy()
         return d, metric
 
+    # Overview outputs
     @output
     @render.ui
     def overview_cards():
+        """
+        Render the four metric cards on the Overview tab.
+        These compare one selected station against another for a chosen year.
+        """
         station_a = input.station_overview()
         station_b = input.compare_overview()
         year = int(input.year_overview())
@@ -860,10 +1082,13 @@ def server(input, output, session):
         if a is None:
             return ui.div({"class": "panel-card"}, "No annual data available for the selected station and year.")
 
+        # Pull monthly rows for the selected station/year so anomalies
+        # can be summarised in the cards.
         month_rows = df[(df["Station"] == station_a) & (df["Year"] == year)]
         rain_anom = month_rows["Rainfall_Anomaly"].sum() if not month_rows.empty else np.nan
         temp_anom = month_rows["Temperature_Anomaly"].mean() if not month_rows.empty else np.nan
 
+        # Compare the selected primary station with the selected comparison station.
         if b is not None:
             rain_sub = f"{a['Annual_Rainfall'] - b['Annual_Rainfall']:+.1f} mm vs {station_b}"
             temp_sub = f"{a['Annual_Temperature'] - b['Annual_Temperature']:+.1f} °C vs {station_b}"
@@ -882,11 +1107,16 @@ def server(input, output, session):
     @output
     @render_widget
     def annual_compare_plot():
+        """
+        Render the Overview bar chart.
+        Each bar shows annual rainfall by station for the selected year.
+        Bar colour represents annual mean temperature.
+        """
         plot_df = overview_year_data()
         year = int(input.year_overview())
 
         if plot_df.empty:
-            return empty_figure()
+            return empty_figure("No annual comparison data matches the current filters")
 
         fig = px.bar(
             plot_df.sort_values("Annual_Rainfall", ascending=False),
@@ -909,6 +1139,10 @@ def server(input, output, session):
     @output
     @render.ui
     def overview_insight():
+        """
+        Render a simple natural-language comparison between two stations
+        for the selected Overview year.
+        """
         station_a = input.station_overview()
         station_b = input.compare_overview()
         year = int(input.year_overview())
@@ -928,17 +1162,22 @@ def server(input, output, session):
             ui.p(ui.tags.b(f"{year} summary")),
             ui.p(f"{wetter} was wetter by {wetter_diff:.1f} mm of annual rainfall."),
             ui.p(f"{warmer} was warmer by {warmer_diff:.1f} °C on annual mean temperature."),
-            ui.p("Use this top-level comparison to identify the biggest regional differences before drilling into long-term trends or anomalies."),
         )
 
     @output
     @render_widget
     def station_map():
+        """
+        Render the station map.
+        Marker size = annual rainfall
+        Marker colour = annual temperature
+        """
+        # Merge annual data with station coordinates for mapping.
         map_df = overview_year_data().merge(STATION_COORDS, on="Station", how="left")
         map_df = map_df.dropna(subset=["lat", "lon", "Annual_Rainfall", "Annual_Temperature"])
 
         if map_df.empty:
-            return empty_figure()
+            return empty_figure("No map data is available for the selected year")
 
         fig = px.scatter_mapbox(
             map_df,
@@ -967,12 +1206,16 @@ def server(input, output, session):
         )
         return fig
 
+    # Trends outputs
     @output
     @render.ui
     def summary_cards():
+        """
+        Render summary cards for the Trends tab based on the filtered data.
+        """
         d, metric = filtered_data()
         if d.empty:
-            return ui.div({"class": "panel-card"}, "No data available for the selected filters.")
+            return ui.div({"class": "panel-card"}, "No data available for the selected stations or year range.")
 
         avg_value = d[metric].mean()
         min_value = d[metric].min()
@@ -991,9 +1234,13 @@ def server(input, output, session):
     @output
     @render_widget
     def trend_plot():
+        """
+        Render the Trends line chart.
+        The y-axis depends on the selected metric.
+        """
         d, metric = filtered_data()
         if d.empty:
-            return empty_figure()
+            return empty_figure("No data matches the current trend filters")
 
         y_title = "Rainfall (mm)" if metric == "Rainfall" else "Temperature (°C)"
         fig = px.line(
@@ -1013,9 +1260,13 @@ def server(input, output, session):
     @output
     @render.table
     def trend_table():
+        """
+        Render a compact station summary table for the Trends tab.
+        This summarises the filtered range rather than showing raw rows.
+        """
         d, metric = filtered_data()
         if d.empty:
-            return pd.DataFrame({"Message": ["No data available"]})
+            return pd.DataFrame({"Message": ["No data available for selected stations or year range"]})
 
         summary = (
             d.sort_values("Date")
@@ -1032,6 +1283,7 @@ def server(input, output, session):
         summary["Change"] = summary["Latest_Value"] - summary["First_Value"]
         summary = summary.drop(columns=["First_Value"])
         summary["Last_Month"] = pd.to_datetime(summary["Last_Month"]).dt.strftime("%Y-%m")
+
         for col in ["Latest_Value", "Average_Value", "Minimum_Value", "Maximum_Value", "Change"]:
             summary[col] = summary[col].round(1)
 
@@ -1047,12 +1299,45 @@ def server(input, output, session):
             }
         ).sort_values(f"Latest {label}", ascending=False).reset_index(drop=True)
 
+    @render.download(filename="trend_summary.csv")
+    def download_trend_table():
+        """
+        Provide a CSV download of the Trends summary table.
+        """
+        d, metric = filtered_data()
+
+        if d.empty:
+            yield "No data available\n"
+            return
+
+        summary = (
+            d.sort_values("Date")
+            .groupby("Station", as_index=False)
+            .agg(
+                Latest_Value=(metric, "last"),
+                Average_Value=(metric, "mean"),
+                Minimum_Value=(metric, "min"),
+                Maximum_Value=(metric, "max"),
+                First_Value=(metric, "first"),
+                Last_Month=("Date", "last"),
+            )
+        )
+        summary["Change"] = summary["Latest_Value"] - summary["First_Value"]
+        summary = summary.drop(columns=["First_Value"])
+        summary["Last_Month"] = pd.to_datetime(summary["Last_Month"]).dt.strftime("%Y-%m")
+        yield summary.to_csv(index=False)
+
+    # Seasonality outputs
     @output
     @render_widget
     def season_plot():
+        """
+        Render the Seasonality line chart.
+        Each line shows the average monthly pattern for a station.
+        """
         season, metric = season_filtered()
         if season.empty:
-            return empty_figure()
+            return empty_figure("No data matches the current seasonality filters")
 
         y_title = "Rainfall (mm)" if metric == "Rainfall" else "Temperature (°C)"
         fig = px.line(
@@ -1072,9 +1357,13 @@ def server(input, output, session):
     @output
     @render.table
     def season_table():
+        """
+        Render a summary table for the Seasonality tab.
+        It highlights the peak month, low month, annual average, and seasonal range.
+        """
         season, metric = season_filtered()
         if season.empty:
-            return pd.DataFrame({"Message": ["No data available"]})
+            return pd.DataFrame({"Message": ["No data available for selected stations"]})
 
         rows = []
         for station, grp in season.groupby("Station"):
@@ -1104,15 +1393,22 @@ def server(input, output, session):
             }
         ).sort_values(f"Seasonal range ({unit})", ascending=False).reset_index(drop=True)
 
+    # Anomalies outputs
     @output
     @render_widget
     def anom_plot():
+        """
+        Render the anomalies bar chart for the selected station and year.
+        Positive bars = above normal
+        Negative bars = below normal
+        """
         d, metric = anomaly_filtered()
         if d.empty:
-            return empty_figure()
+            return empty_figure("No anomaly data is available for the selected station and year")
 
         title_text = "Rainfall anomaly" if metric == "Rainfall_Anomaly" else "Temperature anomaly"
         color_scale = "RdBu" if metric == "Temperature_Anomaly" else "BrBG"
+
         fig = px.bar(
             d,
             x="Month",
@@ -1122,6 +1418,8 @@ def server(input, output, session):
             color_continuous_scale=color_scale,
             hover_data={metric: ":.1f", "Month": True},
         )
+
+        # Add a zero reference line so users can easily see above/below normal values.
         fig.add_hline(y=0, line_dash="dash", line_color="black", opacity=0.7)
         fig.update_xaxes(title="")
         fig.update_yaxes(title=title_text)
@@ -1131,9 +1429,13 @@ def server(input, output, session):
     @output
     @render.table
     def anom_table():
+        """
+        Render a compact anomaly insight table.
+        This helps interpret the anomaly chart without showing raw monthly values only.
+        """
         d, metric = anomaly_filtered()
         if d.empty:
-            return pd.DataFrame({"Message": ["No data available"]})
+            return pd.DataFrame({"Message": ["No anomaly data available for this station/year"]})
 
         pos = d[d[metric] > 0]
         neg = d[d[metric] < 0]
@@ -1171,4 +1473,5 @@ def server(input, output, session):
         return out
 
 
+# Create the Shiny app by combining the UI and server definitions.
 app = App(app_ui, server)
