@@ -3,4 +3,5 @@ shinywidgets
 plotly
 pandas
 numpy
-
+jinja2
+matplotlib

@@ -10,8 +10,8 @@ id = "019dca9f-395b-968d-8266-f6bb4a660238"
 dashboard_url = "https://connect.posit.cloud/killianharnett/content/019dca9f-395b-968d-8266-f6bb4a660238"
 direct_url = "https://019dca9f-395b-968d-8266-f6bb4a660238.share.connect.posit.cloud"
 logs_url = "https://connect.posit.cloud/killianharnett/content/019dca9f-395b-968d-8266-f6bb4a660238/history"
-deployed_at = "2026-04-26T18:28:56.264Z"
-bundle_id = "019dcb0d-10c0-52f7-3f8d-2f34a50e4114"
+deployed_at = "2026-04-28T09:48:25.600Z"
+bundle_id = "019dd37d-326a-a369-dfc5-47011a8959c2"
 files = [
     ".posit/publish/WeatherApp-O89K.toml",
     ".posit/publish/deployments/deployment-7PN9.toml",
@@ -24,6 +24,8 @@ requirements = [
     "plotly\r",
     "pandas\r",
     "numpy\r",
+    "jinja2\r",
+    "matplotlib\r",
 ]
 
 [connect_cloud]

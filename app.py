@@ -7,9 +7,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-# plotly is used for interactive charts and maps.
+# plotly and matplotlib are used for interactive charts and maps.
 import plotly.express as px
 import plotly.graph_objects as go
+import matplotlib.pyplot as plt
 
 # shiny provides the app framework, reactivity, rendering, and UI.
 from shiny import App, reactive, render, ui
@@ -382,6 +383,56 @@ def get_annual_row(station: str, year: int) -> pd.Series | None:
     if row.empty:
         return None
     return row.iloc[0]
+
+
+def style_table(table: pd.DataFrame, highlight_cols: list[str] | None = None):
+    """
+    Apply consistent styling to dashboard tables.
+
+    Why this exists:
+    - keeps table styling consistent across the app
+    - improves readability for summary tables
+    - highlights important numeric columns when needed
+    """
+    styled = (
+        table.style
+        .hide(axis="index")
+        .set_table_styles(
+            [
+                {
+                    "selector": "th",
+                    "props": [
+                        ("font-weight", "700"),
+                        ("background-color", "#f1f5f9"),
+                        ("color", "#102a43"),
+                        ("padding", "9px"),
+                        ("border-bottom", "2px solid #d9e2ec"),
+                    ],
+                },
+                {
+                    "selector": "td",
+                    "props": [
+                        ("padding", "9px"),
+                        ("border-bottom", "1px solid #e5e7eb"),
+                    ],
+                },
+                {
+                    "selector": "table",
+                    "props": [
+                        ("width", "100%"),
+                        ("border-collapse", "collapse"),
+                        ("font-size", "0.95rem"),
+                    ],
+                },
+            ]
+        )
+    )
+
+    # Highlight selected numeric columns to draw attention to key values.
+    if highlight_cols:
+        styled = styled.background_gradient(subset=highlight_cols)
+
+    return styled
 
 
 # Styling
@@ -934,7 +985,7 @@ app_ui = ui.page_navbar(
                 ui.h4("Limitations"),
                 ui.tags.ul(
                     ui.tags.li("Station coordinates are predefined in the app."),
-                    ui.tags.li("Data completeness depends on the source JSON files."),
+                    ui.tags.li("Data completeness depends on the available source dataset."),
                     ui.tags.li("No external validation is applied beyond internal cleaning rules."),
                 ),
             ),
@@ -1288,7 +1339,7 @@ def server(input, output, session):
             summary[col] = summary[col].round(1)
 
         label = "Rainfall (mm)" if metric == "Rainfall" else "Temperature (°C)"
-        return summary.rename(
+        out = summary.rename(
             columns={
                 "Latest_Value": f"Latest {label}",
                 "Average_Value": f"Average {label}",
@@ -1298,6 +1349,8 @@ def server(input, output, session):
                 "Last_Month": "Latest month",
             }
         ).sort_values(f"Latest {label}", ascending=False).reset_index(drop=True)
+
+        return style_table(out, highlight_cols=[f"Change in {label}"])
 
     @render.download(filename="trend_summary.csv")
     def download_trend_table():
@@ -1384,7 +1437,7 @@ def server(input, output, session):
 
         out = pd.DataFrame(rows)
         unit = "mm" if metric == "Rainfall" else "°C"
-        return out.rename(
+        out = out.rename(
             columns={
                 "Peak value": f"Peak value ({unit})",
                 "Low value": f"Low value ({unit})",
@@ -1392,6 +1445,8 @@ def server(input, output, session):
                 "Seasonal range": f"Seasonal range ({unit})",
             }
         ).sort_values(f"Seasonal range ({unit})", ascending=False).reset_index(drop=True)
+
+        return style_table(out, highlight_cols=[f"Seasonal range ({unit})"])
 
     # Anomalies outputs
     @output
@@ -1470,7 +1525,7 @@ def server(input, output, session):
         out.loc[out["Insight"] == "Annual anomaly summary", "Value"] = out.loc[
             out["Insight"] == "Annual anomaly summary", "Value"
         ].astype(str) + f" {unit}"
-        return out
+        return style_table(out)
 
 
 # Create the Shiny app by combining the UI and server definitions.
