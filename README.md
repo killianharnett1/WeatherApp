@@ -9,7 +9,8 @@ The application is designed for general users to investigate climate trends thro
 
 ## Live Application
  **Access the dashboard here:**  
-[https://connect.posit.cloud/killianharnett/content/019dca9f-395b-968d-8266-f6bb4a660238]
+[https://019dca9f-395b-968d-8266-f6bb4a660238.share.connect.posit.cloud/]
+
 
 ---
 
